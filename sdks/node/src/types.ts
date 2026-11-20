@@ -106,3 +106,80 @@ export interface ScreenshotOptions {
   timeout?: number;
   [k: string]: unknown;
 }
+
+export interface AiExtractOptions {
+  /** What to extract, in plain words. */
+  prompt?: string;
+  /** JSON schema the result must match. */
+  schema?: Record<string, unknown>;
+  /** claude-haiku-5-5 | claude-sonnet-5-5 | claude-opus-5-5 (default: the platform default). */
+  model?: string;
+  jsRender?: boolean;
+  useProxy?: boolean;
+}
+
+export interface AiExtractResult {
+  data: any;
+  model?: string;
+  usage?: { input_tokens: number; output_tokens: number };
+  credits_used?: number;
+  [k: string]: unknown;
+}
+
+export interface SearchOptions {
+  limit?: number;
+  /** Scrape every result (default true). */
+  scrape?: boolean;
+  format?: "markdown" | "text" | "html";
+  provider?: "brave" | "serper";
+  maxChars?: number;
+}
+
+export interface SearchResult {
+  query: string;
+  results: Array<{ title: string; url: string; snippet?: string; markdown?: string; success?: boolean; [k: string]: unknown }>;
+  [k: string]: unknown;
+}
+
+export type CrawlExportFormat = "jsonl" | "markdown" | "chunks" | "llms" | "llms-full";
+
+export interface MonitorOptions {
+  /** 15, 60, 360, 1440 (default) or 10080 minutes, within your plan's limit. */
+  intervalMinutes?: number;
+  name?: string;
+  /** Only watch the elements matching this CSS selector. */
+  selector?: string;
+  /** Regular expressions; matching text is ignored (timestamps, counters). */
+  ignorePatterns?: string[];
+  minChangeChars?: number;
+  notifyEmail?: boolean;
+  jsRender?: boolean;
+  useProxy?: boolean;
+}
+
+export interface Monitor {
+  id: string;
+  name: string;
+  url: string;
+  selector: string;
+  interval_minutes: number;
+  status: "active" | "paused";
+  paused_reason?: string | null;
+  checks: number;
+  changes: number;
+  last_checked_at?: string | null;
+  last_changed_at?: string | null;
+  next_check_at?: string | null;
+  [k: string]: unknown;
+}
+
+export interface MonitorChange {
+  id: string;
+  created_at: string;
+  summary: string;
+  preview: string;
+  diff: string;
+  added: number;
+  removed: number;
+  [k: string]: unknown;
+}

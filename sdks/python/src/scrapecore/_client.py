@@ -39,8 +39,8 @@ class ScrapeCore:
         self.close()
 
     def request(self, method: str, path: str, *, json: Any = None, params: dict | None = None,
-                idempotent_key: str | None = None) -> Any:
-        """Any /api/v1 endpoint. Retries what is safe to retry."""
+                idempotent_key: str | None = None, raw: bool = False) -> Any:
+        """Any /api/v1 endpoint. Retries what is safe to retry. raw=True returns the body as text."""
         headers = dict(self._s.headers)
         if idempotent_key:
             headers["Idempotency-Key"] = idempotent_key
@@ -49,6 +49,8 @@ class ScrapeCore:
             try:
                 r = self._http.request(method, self._s.url(path), json=json, params=params, headers=headers,
                                        timeout=self._s.timeout)
+                if raw and r.status_code < 400:
+                    return r.text
                 return _base.parse(r.status_code, r.headers, r.content)
             except _errors.ScrapeCoreError as e:
                 err = e
@@ -159,6 +161,62 @@ class ScrapeCore:
     def jobs(self, *, limit: int = 50, offset: int = 0, status: str | None = None, type: str | None = None) -> list:
         return self.request("GET", "jobs", params=_base._clean({"limit": limit, "offset": offset,
                                                                   "status": status, "type": type}))
+
+    # ── AI extraction and web search (bring your own provider key) ───────────────────────
+    def ai_extract(self, url: str, *, prompt: str | None = None, schema: dict | None = None, model: str | None = None,
+                   js_render: bool | None = None, use_proxy: bool | None = None) -> dict:
+        """Structured data from a page with Claude, using the Anthropic key saved in your dashboard
+        (Integrations → AI extraction). Give a prompt, a JSON schema, or both. Returns {"data", ...}."""
+        return self.request("POST", "extract/ai", json=_base._clean({"url": url, "prompt": prompt, "schema": schema,
+                                                                      "model": model, "js_render": js_render,
+                                                                      "use_proxy": use_proxy}))
+
+    def search(self, query: str, *, limit: int | None = None, scrape: bool | None = None, format: str | None = None,
+               provider: str | None = None, max_chars: int | None = None) -> dict:
+        """Web search (your Brave / Serper key) and, by default, scrape each result as Markdown."""
+        return self.request("POST", "search", json=_base._clean({"query": query, "limit": limit, "scrape": scrape,
+                                                                  "format": format, "provider": provider,
+                                                                  "max_chars": max_chars}))
+
+    def crawl_export(self, job_id: str, format: str = "jsonl", *, chunk_size: int | None = None,
+                     overlap: int | None = None) -> str:
+        """A crawl as one AI-ready document: "jsonl", "markdown", "chunks" (RAG-sized JSONL),
+        "llms" (llms.txt) or "llms-full" (llms-full.txt)."""
+        return self.request("GET", f"crawl/{job_id}/export", raw=True,
+                                params=_base._clean({"format": format, "chunk_size": chunk_size, "overlap": overlap}))
+
+    # ── page-change monitors ─────────────────────────────────────────────────────────────
+    def monitors(self) -> dict:
+        """{"monitors": [...], "limit": n, "intervals": [...]}"""
+        return self.request("GET", "monitors")
+
+    def create_monitor(self, url: str, *, interval_minutes: int = 1440, name: str | None = None,
+                       selector: str | None = None, ignore_patterns: Sequence[str] | None = None,
+                       min_change_chars: int | None = None, notify_email: bool | None = None,
+                       js_render: bool | None = None, use_proxy: bool | None = None) -> dict:
+        """Watch a page (optionally one CSS selector of it) and get alerted when it changes."""
+        return self.request("POST", "monitors", json=_base._clean({
+            "url": url, "interval_minutes": interval_minutes, "name": name, "selector": selector,
+            "ignore_patterns": list(ignore_patterns) if ignore_patterns else None, "min_change_chars": min_change_chars,
+            "notify_email": notify_email, "js_render": js_render, "use_proxy": use_proxy}))
+
+    def get_monitor(self, monitor_id: str) -> dict:
+        return self.request("GET", f"monitors/{monitor_id}")
+
+    def update_monitor(self, monitor_id: str, **changes) -> dict:
+        """Change any setting; status="paused" / "active" pauses or resumes."""
+        return self.request("PATCH", f"monitors/{monitor_id}", json=_base._clean(changes))
+
+    def delete_monitor(self, monitor_id: str) -> dict:
+        return self.request("DELETE", f"monitors/{monitor_id}")
+
+    def check_monitor(self, monitor_id: str) -> dict:
+        """Check now. Returns {"changed": bool, "summary"?, "monitor": {...}}."""
+        return self.request("POST", f"monitors/{monitor_id}/check")
+
+    def monitor_changes(self, monitor_id: str, *, limit: int = 20) -> list:
+        """Detected changes, newest first, each with a unified "diff"."""
+        return (self.request("GET", f"monitors/{monitor_id}/changes", params={"limit": limit}))["changes"]
 
     # ── account ───────────────────────────────────────────────────────────────────────────
     def usage(self) -> dict:

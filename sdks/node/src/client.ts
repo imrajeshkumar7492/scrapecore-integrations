@@ -2,7 +2,8 @@ import {
   APIConnectionError, AuthenticationError, JobFailedError, JobTimeoutError, ScrapeCoreError, fromResponse,
 } from "./errors.js";
 import type {
-  CrawlOptions, CrawlPage, Job, MapOptions, MapResult, ScrapeOptions, ScrapeResult, ScreenshotOptions, WaitOptions,
+  AiExtractOptions, AiExtractResult, CrawlExportFormat, CrawlOptions, CrawlPage, Job, MapOptions, MapResult, Monitor,
+  MonitorChange, MonitorOptions, ScrapeOptions, ScrapeResult, ScreenshotOptions, SearchOptions, SearchResult, WaitOptions,
 } from "./types.js";
 import { VERSION } from "./version.js";
 
@@ -27,6 +28,8 @@ export interface RequestOptions {
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
   idempotencyKey?: string;
+  /** Resolve to the response body as text instead of parsed JSON. */
+  raw?: boolean;
 }
 
 const env = (k: string): string | undefined =>
@@ -106,6 +109,7 @@ export class ScrapeCore {
           body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
         });
         const text = await res.text();
+        if (res.ok && opts.raw) return text as unknown as T;
         let parsed: any = null;
         try { parsed = text ? JSON.parse(text) : null; } catch { parsed = { detail: text.slice(0, 500) }; }
         if (res.ok) return parsed as T;
@@ -221,6 +225,56 @@ export class ScrapeCore {
 
   jobs(opts: { limit?: number; offset?: number; status?: string; type?: string } = {}): Promise<Job[]> {
     return this.request("GET", "jobs", { query: opts });
+  }
+
+  // ── AI extraction and web search (bring your own provider key) ───────────────────────
+  /** Structured data with Claude, using the Anthropic key saved in your dashboard. Give a prompt, a JSON schema, or both. */
+  aiExtract(url: string, opts: AiExtractOptions = {}): Promise<AiExtractResult> {
+    return this.request("POST", "extract/ai", { body: body({ url, ...opts }) });
+  }
+
+  /** Web search (your Brave / Serper key) and, by default, each result scraped as Markdown. */
+  search(query: string, opts: SearchOptions = {}): Promise<SearchResult> {
+    return this.request("POST", "search", { body: body({ query, ...opts }) });
+  }
+
+  /** A crawl as one AI-ready document: jsonl, markdown, chunks (RAG JSONL), llms (llms.txt) or llms-full. */
+  crawlExport(jobId: string, format: CrawlExportFormat = "jsonl", opts: { chunkSize?: number; overlap?: number } = {}): Promise<string> {
+    return this.request("GET", `crawl/${encodeURIComponent(jobId)}/export`,
+      { raw: true, query: { format, chunk_size: opts.chunkSize, overlap: opts.overlap } });
+  }
+
+  // ── page-change monitors ─────────────────────────────────────────────────────────────
+  monitors(): Promise<{ monitors: Monitor[]; limit: number; intervals: number[]; min_interval_minutes: number }> {
+    return this.request("GET", "monitors");
+  }
+
+  /** Watch a page (optionally one CSS selector of it) and get alerted when it changes. */
+  createMonitor(url: string, opts: MonitorOptions = {}): Promise<Monitor> {
+    return this.request("POST", "monitors", { body: body({ url, intervalMinutes: 1440, ...opts }) });
+  }
+
+  getMonitor(id: string): Promise<Monitor> {
+    return this.request("GET", `monitors/${encodeURIComponent(id)}`);
+  }
+
+  /** Change any setting; { status: "paused" | "active" } pauses or resumes. */
+  updateMonitor(id: string, changes: MonitorOptions & { status?: "active" | "paused" }): Promise<Monitor> {
+    return this.request("PATCH", `monitors/${encodeURIComponent(id)}`, { body: body({ ...changes }) });
+  }
+
+  deleteMonitor(id: string): Promise<{ ok: boolean }> {
+    return this.request("DELETE", `monitors/${encodeURIComponent(id)}`);
+  }
+
+  /** Check now: { changed, summary?, monitor }. */
+  checkMonitor(id: string): Promise<{ ok: boolean; changed: boolean; summary?: string; error?: string; baseline?: boolean; monitor: Monitor }> {
+    return this.request("POST", `monitors/${encodeURIComponent(id)}/check`);
+  }
+
+  /** Detected changes, newest first, each with a unified diff. */
+  async monitorChanges(id: string, opts: { limit?: number } = {}): Promise<MonitorChange[]> {
+    return (await this.request("GET", `monitors/${encodeURIComponent(id)}/changes`, { query: { limit: opts.limit ?? 20 } })).changes;
   }
 
   // ── account ───────────────────────────────────────────────────────────────────────────

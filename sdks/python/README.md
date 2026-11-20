@@ -2,7 +2,8 @@
 
 The official Python client for the [ScrapeCore](https://scrapecore.com) API (v1). You can scrape
 pages to HTML, Markdown or text, map a site, crawl it, take screenshots, and extract data with CSS
-selectors.
+selectors or with AI. You can also search the web and watch pages for changes. It includes a
+`scrapecore` command-line tool.
 
 ```bash
 pip install scrapecore-sdk
@@ -34,6 +35,44 @@ from scrapecore import AsyncScrapeCore
 async with AsyncScrapeCore() as sc:
     page = await sc.scrape("https://example.com", format="markdown")
 ```
+
+## AI extraction, search, crawl exports, monitors
+
+AI extraction and web search use your own provider keys (Anthropic; Brave or Serper). Save them in
+Dashboard → Integrations. The tokens and queries are billed by your provider, not by ScrapeCore.
+
+```python
+product = sc.ai_extract("https://shop.example/item", prompt="name, price and rating",
+                        schema={"type": "object", "properties": {"name": {"type": "string"},
+                                                                 "price": {"type": "number"}}})["data"]
+
+hits = sc.search("best espresso grinders 2026", limit=3)["results"]      # each with its page as Markdown
+
+llms_txt = sc.crawl_export(job["job_id"], "llms")            # also "jsonl", "markdown", "chunks", "llms-full"
+
+m = sc.create_monitor("https://competitor.example/pricing", interval_minutes=60, selector="#plans")
+for change in sc.monitor_changes(m["id"]):
+    print(change["created_at"], change["summary"], change["diff"])
+```
+
+## Command line
+
+```bash
+scrapecore login                                   # saves the key in ~/.config/scrapecore/config.json (mode 600)
+scrapecore scrape https://example.com              # Markdown to stdout
+scrapecore map https://example.com --limit 200
+scrapecore crawl https://docs.example.com --limit 50 --export llms -o llms.txt
+scrapecore screenshot https://example.com --full-page -o page.png
+scrapecore extract https://shop.example/item -p "name and price"
+scrapecore search "web scraping api" --limit 3
+scrapecore monitor add https://competitor.example/pricing --every 60 --selector "#plans"
+scrapecore monitor list
+scrapecore usage
+```
+
+Add `--json` to print the raw API response, or `-o FILE` to write the result to a file. The key
+comes from `--api-key`, then `SCRAPECORE_API_KEY`, then the key saved by `scrapecore login`.
+`python -m scrapecore` works too.
 
 ## Errors and retries
 

@@ -26,6 +26,32 @@ const data = await sc.extract("https://example.com", { title: "h1" });
 
 CommonJS: `const { ScrapeCore } = require("@scrapecore/sdk");`
 
+## AI extraction, search, crawl exports, monitors
+
+AI extraction and web search use your own provider keys (Anthropic; Brave or Serper), saved in
+Dashboard → Integrations. The tokens and queries are billed by your provider, not by ScrapeCore.
+
+```ts
+const { data } = await sc.aiExtract("https://shop.example/item", { prompt: "name, price and rating" });
+const { results } = await sc.search("best espresso grinders 2026", { limit: 3 });
+const llmsTxt = await sc.crawlExport(job.job_id, "llms");     // "jsonl" | "markdown" | "chunks" | "llms" | "llms-full"
+
+const m = await sc.createMonitor("https://competitor.example/pricing", { intervalMinutes: 60, selector: "#plans" });
+for (const c of await sc.monitorChanges(m.id)) console.log(c.created_at, c.summary, c.diff);
+```
+
+## Command line
+
+```bash
+npx @scrapecore/sdk login            # or install globally: npm i -g @scrapecore/sdk, then `scrapecore ...`
+npx @scrapecore/sdk scrape https://example.com
+npx @scrapecore/sdk crawl https://docs.example.com --limit 50 --export llms -o llms.txt
+npx @scrapecore/sdk monitor add https://competitor.example/pricing --every 60 --selector "#plans"
+```
+
+These are the same commands and the same saved key (`~/.config/scrapecore/config.json`) as the Python CLI.
+Run `scrapecore --help` to list them all.
+
 ## Errors and retries
 
 Every API error is thrown as a subclass of `ScrapeCoreError`, with `code` (stable, e.g.
