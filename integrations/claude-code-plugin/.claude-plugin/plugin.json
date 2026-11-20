@@ -1,0 +1,9 @@
+{
+  "name": "scrapecore",
+  "version": "1.0.0",
+  "description": "Web pages as Markdown, site maps, crawls, extraction and screenshots for Claude Code, through the ScrapeCore MCP server.",
+  "author": { "name": "ScrapeCore", "url": "https://scrapecore.com" },
+  "homepage": "https://scrapecore.com/docs/mcp",
+  "license": "MIT",
+  "keywords": ["web", "scraping", "crawl", "markdown", "research", "mcp"]
+}

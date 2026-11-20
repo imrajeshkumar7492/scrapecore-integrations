@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "scrapecore": {
+      "type": "http",
+      "url": "https://mcp.scrapecore.com/mcp"
+    }
+  }
+}

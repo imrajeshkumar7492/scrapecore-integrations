@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "scrapecore-sdk"
+dynamic = ["version"]
+description = "Official Python client for the ScrapeCore web scraping API"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = ["httpx>=0.25,<1"]
+keywords = ["web scraping", "scraper", "crawler", "markdown", "screenshot", "api", "llm", "rag"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Topic :: Internet :: WWW/HTTP",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Homepage = "https://scrapecore.com"
+Documentation = "https://scrapecore.com/docs"
+Source = "https://github.com/imrajeshkumar7492/scrapecore-integrations/tree/main/sdks/python"
+Issues = "https://github.com/imrajeshkumar7492/scrapecore-integrations/issues"
+
+[project.optional-dependencies]
+test = ["pytest>=7", "pytest-asyncio>=0.21"]
+
+[tool.hatch.version]
+path = "src/scrapecore/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/scrapecore"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

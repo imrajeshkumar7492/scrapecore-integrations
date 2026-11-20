@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.scrapecore/scrapecore",
+  "title": "ScrapeCore",
+  "description": "Read web pages as Markdown, map and crawl sites, extract data and take screenshots. robots.txt respected.",
+  "version": "1.0.0",
+  "websiteUrl": "https://scrapecore.com/docs/mcp",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.scrapecore.com/mcp"
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/imrajeshkumar7492/scrapecore-integrations",
+    "source": "github"
+  }
+}

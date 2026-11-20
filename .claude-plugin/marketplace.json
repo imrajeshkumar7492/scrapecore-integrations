@@ -1,0 +1,17 @@
+{
+  "name": "scrapecore",
+  "owner": {
+    "name": "ScrapeCore",
+    "url": "https://scrapecore.com"
+  },
+  "metadata": {
+    "description": "Official ScrapeCore plugins for Claude Code: web pages as Markdown, site maps, crawls, extraction and screenshots."
+  },
+  "plugins": [
+    {
+      "name": "scrapecore",
+      "source": "./integrations/claude-code-plugin",
+      "description": "ScrapeCore MCP server + a web-research skill: read pages as Markdown, map and crawl sites, extract data, screenshots."
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+# SDKs: tested on every change under sdks/ (Python 3.10-3.13, Node 18-22), published from a tag.
+#   sdk-python-v0.1.0  -> PyPI  "scrapecore-sdk"       (trusted publishing: no token stored here)
+#   sdk-node-v0.1.0    -> npm   "@scrapecore/sdk"  (secret NPM_TOKEN, with provenance)
+# The tag's version must equal the package's version, or nothing is published.
+# This repository is public: GitHub's machines are free, and npm accepts provenance only from public repos.
+name: SDKs
+
+on:
+  push:
+    branches: [main]
+    paths: ["sdks/**", ".github/workflows/sdks.yml"]
+    tags: ["sdk-python-v*", "sdk-node-v*"]
+  pull_request:
+    paths: ["sdks/**", ".github/workflows/sdks.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdks-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  python:
+    name: Python SDK (${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12", "3.13"]
+    defaults:
+      run:
+        working-directory: sdks/python
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[test]" build
+      - run: python -m pytest tests -q
+      - run: python -m build
+      - uses: actions/upload-artifact@v4
+        if: matrix.python == '3.12'
+        with:
+          name: python-dist
+          path: sdks/python/dist/
+
+  node:
+    name: Node SDK (${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["18", "20", "22"]
+    defaults:
+      run:
+        working-directory: sdks/node
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: sdks/node/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  publish-python:
+    name: Publish to PyPI
+    if: startsWith(github.ref, 'refs/tags/sdk-python-v')
+    needs: [python]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write          # PyPI trusted publishing
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tag matches the package version
+        run: |
+          want="${GITHUB_REF_NAME#sdk-python-v}"
+          have=$(python3 -c "import re;print(re.search(r'\"(.+)\"', open('sdks/python/src/scrapecore/_version.py').read())[1])")
+          [ "$want" = "$have" ] || { echo "::error::tag $want but package version $have"; exit 1; }
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-node:
+    name: Publish to npm
+    if: startsWith(github.ref, 'refs/tags/sdk-node-v')
+    needs: [node]
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      id-token: write          # npm provenance
+    defaults:
+      run:
+        working-directory: sdks/node
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      - name: Tag matches the package version
+        run: |
+          want="${GITHUB_REF_NAME#sdk-node-v}"; have=$(node -p "require('./package.json').version")
+          [ "$want" = "$have" ] || { echo "::error::tag $want but package version $have"; exit 1; }
+      - run: npm ci && npm run build
+      - run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

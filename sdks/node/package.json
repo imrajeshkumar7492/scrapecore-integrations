@@ -1,0 +1,27 @@
+{
+  "name": "@scrapecore/sdk",
+  "version": "0.1.0",
+  "description": "Official Node.js / TypeScript client for the ScrapeCore web scraping API",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": { "types": "./dist/esm/index.d.ts", "default": "./dist/esm/index.js" },
+      "require": { "types": "./dist/cjs/index.d.ts", "default": "./dist/cjs/index.js" }
+    }
+  },
+  "files": ["dist", "README.md"],
+  "engines": { "node": ">=18" },
+  "sideEffects": false,
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "keywords": ["web scraping", "scraper", "crawler", "markdown", "screenshot", "api", "llm", "rag"],
+  "homepage": "https://scrapecore.com/docs",
+  "repository": { "type": "git", "url": "git+https://github.com/imrajeshkumar7492/scrapecore-integrations.git", "directory": "sdks/node" },
+  "devDependencies": { "typescript": "5.6.3", "@types/node": "20.17.6" }
+}
