@@ -185,6 +185,58 @@ def cmd_extract(args):
              f"tokens (your Anthropic key) · {r.get('credits_used', 0)} credits")
 
 
+def cmd_ai(args):
+    """AI Extraction job: many URLs / a sitemap / a whole site, with your own AI provider key."""
+    urls = list(args.urls or [])
+    if args.file:
+        import re
+        text = Path(args.file).read_text(encoding="utf-8", errors="ignore")
+        urls += re.findall(r"https?://[^\s,;\"'<>]+", text)
+    schema = None
+    if args.schema:
+        try:
+            schema = json.loads(Path(args.schema).read_text() if os.path.exists(args.schema) else args.schema)
+        except ValueError:
+            die("--schema must be a JSON file or a JSON string", 2)
+    if not (urls or args.sitemap or args.site):
+        die("give URLs, --file, --sitemap or --site", 2)
+    if not (args.prompt or schema):
+        die("give --prompt and/or --schema", 2)
+    with client(args) as sc:
+        job = sc.ai_job(urls or None, instructions=args.prompt or "", schema=schema, sitemap=args.sitemap, site=args.site,
+                        records="list" if args.many else "single", provider=args.provider, model=args.model,
+                        name=args.name, project=args.project)
+        jid = job["job_id"]
+        info(f"AI job {jid} queued: {job.get('provider')} / {job.get('model')}")
+        if args.no_wait:
+            return out(args, job, jid)
+        last = None
+        import time as _t
+        while True:
+            j = sc.get_ai_job(jid)
+            t = j.get("totals") or {}
+            line = f"{j['status']}: {t.get('ok', 0) + t.get('failed', 0)}/{t.get('urls', 0)} pages, {t.get('records', 0)} records"
+            if line != last:
+                info(line)
+                last = line
+            if j["status"] in ("completed", "partially_completed", "failed", "cancelled"):
+                break
+            _t.sleep(3)
+        if j["status"] == "failed" and not t.get("records"):
+            die(j.get("error") or "the job failed")
+        if args.json:
+            return out(args, sc.ai_job_records(jid))
+        fmt = args.format
+        data = sc.ai_job_export(jid, fmt)
+        if fmt == "xlsx" and not args.output:
+            args.output = f"{jid}.xlsx"
+        if args.output:
+            Path(args.output).write_bytes(data)
+            info(f"saved {args.output}")
+        else:
+            sys.stdout.write(data.decode("utf-8-sig"))
+
+
 def cmd_search(args):
     with client(args) as sc:
         r = sc.search(args.query, limit=args.limit, scrape=False if args.no_scrape else None)
@@ -309,6 +361,20 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--model")
     s.add_argument("--selectors", help='CSS selectors as JSON, e.g. \'{"title": "h1"}\'')
     s.add_argument("--js", action="store_true")
+    s = add("ai", cmd_ai, "AI extraction job over many pages (your own AI provider key)")
+    s.add_argument("urls", nargs="*", help="page URLs")
+    s.add_argument("-p", "--prompt", help="what to extract, in plain words")
+    s.add_argument("--schema", help="JSON schema or {field: type} map (file path or JSON string)")
+    s.add_argument("--file", help="CSV/TXT file with URLs")
+    s.add_argument("--sitemap", help="a sitemap URL")
+    s.add_argument("--site", help="discover and process a whole site")
+    s.add_argument("--many", action="store_true", help="many records per page (listings)")
+    s.add_argument("--provider", help="openai, anthropic, gemini, mistral, ... (default: your default)")
+    s.add_argument("--model")
+    s.add_argument("--name")
+    s.add_argument("--project")
+    s.add_argument("-f", "--format", choices=["json", "csv", "xlsx"], default="json")
+    s.add_argument("--no-wait", action="store_true")
     s = add("search", cmd_search, "web search + scrape the results (your Brave / Serper key)")
     s.add_argument("query")
     s.add_argument("--limit", type=int)

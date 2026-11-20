@@ -112,8 +112,12 @@ export interface AiExtractOptions {
   prompt?: string;
   /** JSON schema the result must match. */
   schema?: Record<string, unknown>;
-  /** claude-haiku-5-5 | claude-sonnet-5-5 | claude-opus-5-5 (default: the platform default). */
+  /** Model id for the provider (default: the model saved with the provider). */
   model?: string;
+  /** openai | anthropic | gemini | mistral | groq | deepseek | xai | ... (default: your default provider). */
+  provider?: string;
+  /** "list": every item on the page. */
+  records?: "single" | "list";
   jsRender?: boolean;
   useProxy?: boolean;
 }
@@ -181,5 +185,32 @@ export interface MonitorChange {
   diff: string;
   added: number;
   removed: number;
+  [k: string]: unknown;
+}
+
+export interface AiJobOptions {
+  instructions?: string;
+  /** JSON Schema, or the simple {"field": "type"} map. */
+  schema?: Record<string, unknown>;
+  fields?: unknown[];
+  schemaId?: string;
+  records?: "single" | "list";
+  provider?: string;
+  model?: string;
+  sitemap?: string;
+  site?: string;
+  name?: string;
+  project?: string;
+  options?: { temperature?: number; maxTokens?: number; missingValue?: unknown; dedupeOn?: string[]; jsRender?: boolean; useProxy?: boolean };
+  wait?: boolean;
+  timeout?: number;
+}
+
+export interface AiJob {
+  job_id: string;
+  status: "queued" | "scraping" | "processing" | "validating" | "paused" | "completed" | "partially_completed" | "failed" | "cancelled" | string;
+  provider: string;
+  model: string;
+  totals?: { urls: number; ok: number; failed: number; records: number; invalid: number; duplicates: number };
   [k: string]: unknown;
 }

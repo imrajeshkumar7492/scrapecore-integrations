@@ -28,11 +28,15 @@ CommonJS: `const { ScrapeCore } = require("@scrapecore/sdk");`
 
 ## AI extraction, search, crawl exports, monitors
 
-AI extraction and web search use your own provider keys (Anthropic; Brave or Serper), saved in
-Dashboard → Integrations. The tokens and queries are billed by your provider, not by ScrapeCore.
+AI extraction uses your own AI provider key (OpenAI, Anthropic, Gemini, Mistral, Groq, DeepSeek, xAI, Cohere,
+Azure OpenAI, OpenRouter or any OpenAI-compatible endpoint), connected in Dashboard → AI Extraction. Web search
+uses your Brave or Serper key. Your provider bills you for tokens and queries; ScrapeCore does not.
 
 ```ts
 const { data } = await sc.aiExtract("https://shop.example/item", { prompt: "name, price and rating" });
+const job = await sc.aiJob(null, { sitemap: "https://shop.example/sitemap.xml", instructions: "name and price",
+  schema: { name: "string", price: "number" }, provider: "gemini", wait: true });
+const records = await sc.aiJobRecords(job.job_id);
 const { results } = await sc.search("best espresso grinders 2026", { limit: 3 });
 const llmsTxt = await sc.crawlExport(job.job_id, "llms");     // "jsonl" | "markdown" | "chunks" | "llms" | "llms-full"
 

@@ -144,3 +144,28 @@ def test_extract_needs_prompt_schema_or_selectors(cli, monkeypatch):
     with pytest.raises(SystemExit) as e:
         _cli.main(["extract", "https://x.example"])
     assert e.value.code == 2
+
+
+def test_ai_job_methods_and_cli(cli, monkeypatch, capsys, tmp_path):
+    calls, routes = cli
+    monkeypatch.setenv("SCRAPECORE_API_KEY", KEY)
+    seen = {}
+
+    def create(req):
+        seen["body"] = json.loads(req.content)
+        return httpx.Response(200, json={"job_id": "aij_1", "status": "queued", "provider": "openai", "model": "gpt-4.1"})
+    routes[("POST", "/ai/jobs")] = create
+    routes[("GET", "/ai/jobs/aij_1")] = httpx.Response(200, json={"job_id": "aij_1", "status": "completed",
+                                                                  "totals": {"ok": 2, "failed": 0, "urls": 2, "records": 3}})
+    routes[("GET", "/ai/jobs/aij_1/export")] = httpx.Response(200, content=b"name,price\nMug,12\n")
+    dest = tmp_path / "out.csv"
+    assert _cli.main(["ai", "https://a.example/1", "https://a.example/2", "-p", "products", "--many", "-f", "csv",
+                      "--provider", "openai", "-o", str(dest)]) == 0
+    assert dest.read_bytes() == b"name,price\nMug,12\n"
+    b = seen["body"]
+    assert b["urls"] == ["https://a.example/1", "https://a.example/2"] and b["records"] == "list" and b["mode"] == "bulk"
+    assert b["provider"] == "openai" and b["instructions"] == "products"
+    assert "completed: 2/2 pages, 3 records" in capsys.readouterr().err
+    with pytest.raises(SystemExit) as e:
+        _cli.main(["ai", "-p", "x"])
+    assert e.value.code == 2

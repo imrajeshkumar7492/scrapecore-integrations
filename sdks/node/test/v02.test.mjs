@@ -113,3 +113,23 @@ test("cli: crawl waits then writes the export; screenshot writes the image", asy
     assert.ok(existsSync(img) && readFileSync(img).equals(png));
   } finally { t.restore(); delete process.env.SCRAPECORE_API_KEY; }
 });
+
+test("cli: ai job over URLs writes the export", async () => {
+  let body;
+  const t = withCli({
+    "POST /ai/jobs": () => json(200, { job_id: "aij_1", status: "queued", provider: "openai", model: "gpt-4.1" }),
+    "GET /ai/jobs/aij_1": () => json(200, { job_id: "aij_1", status: "completed", totals: { ok: 2, failed: 0, urls: 2, records: 3 } }),
+    "GET /ai/jobs/aij_1/export": () => new Response("name,price\nMug,12\n", { status: 200 }),
+  });
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { if (init.method === "POST") body = JSON.parse(init.body); return realFetch(url, init); };
+  process.env.SCRAPECORE_API_KEY = KEY;
+  try {
+    const dest = join(t.dir, "out.csv");
+    assert.equal(await main(["ai", "https://a.example/1", "https://a.example/2", "-p", "products", "--many", "--format", "csv", "--provider", "openai", "-o", dest]), 0);
+    assert.equal(readFileSync(dest, "utf8"), "name,price\nMug,12\n");
+    assert.deepEqual([body.urls.length, body.records, body.mode, body.provider], [2, "list", "bulk", "openai"]);
+    assert.match(t.errs.join(""), /completed: 2\/2 pages, 3 records/);
+    assert.equal(await main(["ai", "-p", "x"]), 2);
+  } finally { globalThis.fetch = realFetch; t.restore(); delete process.env.SCRAPECORE_API_KEY; }
+});

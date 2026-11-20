@@ -26,7 +26,7 @@ export const CONFIG_PATH = (): string =>
 
 class UsageError extends Error {}
 
-const BOOL = new Set(["json", "js", "proxy", "subdomains", "no-wait", "full-page", "no-scrape", "help", "version"]);
+const BOOL = new Set(["json", "js", "proxy", "subdomains", "no-wait", "full-page", "no-scrape", "help", "version", "many"]);
 const MULTI = new Set(["include", "exclude"]);
 const ALIAS: Record<string, string> = { o: "output", f: "format", p: "prompt", h: "help", V: "version" };
 
@@ -218,6 +218,45 @@ const COMMANDS: Record<string, { help: string; run: (pos: string[], f: Flags) =>
       const r = await sc.aiExtract(url, { prompt: str(f, "prompt"), schema, model: str(f, "model"), jsRender: f.js ? true : undefined });
       out(f, r, JSON.stringify(r.data, null, 2));
       if (r.usage && !f.json) info(`${r.model} · ${r.usage.input_tokens} in / ${r.usage.output_tokens} out tokens (your Anthropic key)`);
+    },
+  },
+  ai: {
+    help: "AI extraction job over many pages with your own AI key (URLs | --file | --sitemap | --site; -p, --schema, --many)",
+    async run(p, f) {
+      const sc = client(f);
+      let urls = [...p];
+      const file = str(f, "file");
+      if (file) urls = urls.concat(readFileSync(file, "utf8").match(/https?:\/\/[^\s,;"'<>]+/g) || []);
+      let schema: any;
+      const s = str(f, "schema");
+      if (s) {
+        try { schema = JSON.parse(existsSync(s) ? readFileSync(s, "utf8") : s); }
+        catch { throw new UsageError("--schema must be a JSON file or a JSON string"); }
+      }
+      if (!urls.length && !str(f, "sitemap") && !str(f, "site")) throw new UsageError("give URLs, --file, --sitemap or --site");
+      if (!str(f, "prompt") && !schema) throw new UsageError("give --prompt and/or --schema");
+      const job = await sc.aiJob(urls.length ? urls : null, { instructions: str(f, "prompt") || "", schema, sitemap: str(f, "sitemap"),
+        site: str(f, "site"), records: f.many ? "list" : "single", provider: str(f, "provider"), model: str(f, "model"),
+        name: str(f, "name"), project: str(f, "project") });
+      info(`AI job ${job.job_id} queued: ${job.provider} / ${job.model}`);
+      if (f["no-wait"]) return out(f, job, job.job_id);
+      let last = "";
+      let j: any;
+      for (;;) {
+        j = await sc.getAiJob(job.job_id);
+        const t = j.totals || {};
+        const line = `${j.status}: ${(t.ok || 0) + (t.failed || 0)}/${t.urls || 0} pages, ${t.records || 0} records`;
+        if (line !== last) { info(line); last = line; }
+        if (["completed", "partially_completed", "failed", "cancelled"].includes(j.status)) break;
+        await new Promise((r) => setTimeout(r, Number(process.env.SCRAPECORE_POLL_MS || 3000)));
+      }
+      if (j.status === "failed" && !(j.totals || {}).records) throw new ScrapeCoreError(j.error || "the job failed");
+      if (f.json) return out(f, await sc.aiJobRecords(job.job_id));
+      const fmt = (str(f, "format") || "json") as any;
+      const data = await sc.aiJobExport(job.job_id, fmt);
+      const dest = str(f, "output") || (fmt === "xlsx" ? `${job.job_id}.xlsx` : undefined);
+      if (dest) { writeFileSync(dest, data); info(`saved ${dest}`); }
+      else process.stdout.write(Buffer.from(data).toString("utf8").replace(/^\uFEFF/, ""));
     },
   },
   search: {

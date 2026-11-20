@@ -39,7 +39,7 @@ class ScrapeCore:
         self.close()
 
     def request(self, method: str, path: str, *, json: Any = None, params: dict | None = None,
-                idempotent_key: str | None = None, raw: bool = False) -> Any:
+                idempotent_key: str | None = None, raw: bool | str = False) -> Any:
         """Any /api/v1 endpoint. Retries what is safe to retry. raw=True returns the body as text."""
         headers = dict(self._s.headers)
         if idempotent_key:
@@ -50,7 +50,7 @@ class ScrapeCore:
                 r = self._http.request(method, self._s.url(path), json=json, params=params, headers=headers,
                                        timeout=self._s.timeout)
                 if raw and r.status_code < 400:
-                    return r.text
+                    return r.content if raw == "bytes" else r.text
                 return _base.parse(r.status_code, r.headers, r.content)
             except _errors.ScrapeCoreError as e:
                 err = e
@@ -164,11 +164,14 @@ class ScrapeCore:
 
     # ── AI extraction and web search (bring your own provider key) ───────────────────────
     def ai_extract(self, url: str, *, prompt: str | None = None, schema: dict | None = None, model: str | None = None,
+                   provider: str | None = None, records: str | None = None,
                    js_render: bool | None = None, use_proxy: bool | None = None) -> dict:
-        """Structured data from a page with Claude, using the Anthropic key saved in your dashboard
-        (Integrations → AI extraction). Give a prompt, a JSON schema, or both. Returns {"data", ...}."""
+        """Structured data from ONE page with your own AI provider key (any provider connected in
+        Dashboard → AI Extraction: OpenAI, Anthropic, Gemini, Mistral, ...; default = your default one).
+        Give a prompt, a JSON schema, or both. records="list" returns every item. Returns {"data", ...}.
+        For many pages, sitemaps or whole sites use ai_job()."""
         return self.request("POST", "extract/ai", json=_base._clean({"url": url, "prompt": prompt, "schema": schema,
-                                                                      "model": model, "js_render": js_render,
+                                                                      "model": model, "provider": provider, "records": records, "js_render": js_render,
                                                                       "use_proxy": use_proxy}))
 
     def search(self, query: str, *, limit: int | None = None, scrape: bool | None = None, format: str | None = None,
@@ -217,6 +220,69 @@ class ScrapeCore:
     def monitor_changes(self, monitor_id: str, *, limit: int = 20) -> list:
         """Detected changes, newest first, each with a unified "diff"."""
         return (self.request("GET", f"monitors/{monitor_id}/changes", params={"limit": limit}))["changes"]
+
+    # ── AI Extraction jobs (your own AI provider key; many URLs, sitemaps, whole sites) ─────
+    def ai_providers(self) -> dict:
+        """Your connected AI providers (keys masked) and the default one."""
+        return self.request("GET", "ai/providers")
+
+    def ai_job(self, urls: Sequence[str] | None = None, *, instructions: str = "", schema: dict | None = None,
+               fields: list | None = None, schema_id: str | None = None, records: str = "single",
+               provider: str | None = None, model: str | None = None, sitemap: str | None = None,
+               site: str | None = None, name: str | None = None, project: str | None = None,
+               wait: bool = False, timeout: float = 3600, **options) -> dict:
+        """Start an AI extraction job. Give urls, or sitemap=..., or site=... (discover its pages).
+        records="list" extracts every item on each page. options: temperature, max_tokens,
+        missing_value, dedupe_on, js_render, use_proxy. wait=True blocks until the job ends."""
+        if sitemap or site:
+            source = {"type": "sitemap" if sitemap else "discover", "value": sitemap or site}
+        else:
+            source = {"type": "urls"}
+        body = _base._clean({"urls": list(urls or []), "source": source, "instructions": instructions,
+                             "json_schema": schema, "fields": fields, "schema_id": schema_id, "records": records,
+                             "provider": provider, "model": model, "name": name, "project": project,
+                             "mode": "bulk" if urls and len(urls) > 1 else ("multipage" if site else "natural"),
+                             "options": _base._clean(options) or None})
+        job = self.request("POST", "ai/jobs", json=body, idempotent_key=_base.idempotency_key())
+        return (self.wait_for_ai_job(job["job_id"], timeout=timeout)) if wait else job
+
+    def get_ai_job(self, job_id: str) -> dict:
+        return self.request("GET", f"ai/jobs/{job_id}")
+
+    def wait_for_ai_job(self, job_id: str, *, timeout: float = 3600, poll_interval: float = 2.0) -> dict:
+        """Poll until completed / partially_completed / failed / cancelled (never raises on failure)."""
+        deadline = time.monotonic() + timeout
+        while True:
+            job = self.get_ai_job(job_id)
+            if job.get("status") in ("completed", "partially_completed", "failed", "cancelled"):
+                return job
+            if time.monotonic() + poll_interval > deadline:
+                raise _errors.JobTimeoutError(f"AI job {job_id} still {job.get('status')} after {timeout}s", job,
+                                              code="JOB_TIMEOUT")
+            time.sleep(poll_interval)
+            poll_interval = min(poll_interval * 1.3, 10.0)
+
+    def ai_job_records(self, job_id: str, *, valid: str | None = None, page_size: int = 200) -> list:
+        """Every record of a job (each: data, valid, errors, url, inferred). valid: "valid" | "invalid" | "missing"."""
+        out, offset = [], 0
+        while True:
+            r = self.request("GET", f"ai/jobs/{job_id}/records",
+                                params=_base._clean({"offset": offset, "limit": page_size, "valid": valid}))
+            out += r.get("records") or []
+            offset += len(r.get("records") or [])
+            if not r.get("records") or offset >= int(r.get("total") or 0):
+                return out
+
+    def ai_job_export(self, job_id: str, format: str = "json") -> bytes:
+        """The job's records as a file: "json", "csv" or "xlsx" (bytes)."""
+        return self.request("GET", f"ai/jobs/{job_id}/export", params={"format": format}, raw="bytes")
+
+    def cancel_ai_job(self, job_id: str) -> dict:
+        return self.request("POST", f"ai/jobs/{job_id}/cancel")
+
+    def retry_ai_job(self, job_id: str) -> dict:
+        """Retry only the pages that failed."""
+        return self.request("POST", f"ai/jobs/{job_id}/retry")
 
     # ── account ───────────────────────────────────────────────────────────────────────────
     def usage(self) -> dict:

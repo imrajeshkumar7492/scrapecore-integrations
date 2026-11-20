@@ -38,13 +38,20 @@ async with AsyncScrapeCore() as sc:
 
 ## AI extraction, search, crawl exports, monitors
 
-AI extraction and web search use your own provider keys (Anthropic; Brave or Serper). Save them in
-Dashboard → Integrations. The tokens and queries are billed by your provider, not by ScrapeCore.
+AI extraction uses your own AI provider key: OpenAI, Anthropic, Gemini, Mistral, Groq, DeepSeek, xAI,
+Cohere, Azure OpenAI, OpenRouter or any OpenAI-compatible endpoint. Connect it in Dashboard → AI Extraction.
+Web search uses your Brave or Serper key. Your provider bills you for tokens and queries; ScrapeCore does not.
 
 ```python
 product = sc.ai_extract("https://shop.example/item", prompt="name, price and rating",
                         schema={"type": "object", "properties": {"name": {"type": "string"},
                                                                  "price": {"type": "number"}}})["data"]
+
+# many pages (or sitemap=..., site=...) as a background job, any connected provider
+job = sc.ai_job(["https://shop.example/c/1", "https://shop.example/c/2"], instructions="every product with price",
+                schema={"name": "string", "price": "number"}, records="list", provider="openai", wait=True)
+rows = sc.ai_job_records(job["job_id"])
+open("products.xlsx", "wb").write(sc.ai_job_export(job["job_id"], "xlsx"))
 
 hits = sc.search("best espresso grinders 2026", limit=3)["results"]      # each with its page as Markdown
 
@@ -64,6 +71,7 @@ scrapecore map https://example.com --limit 200
 scrapecore crawl https://docs.example.com --limit 50 --export llms -o llms.txt
 scrapecore screenshot https://example.com --full-page -o page.png
 scrapecore extract https://shop.example/item -p "name and price"
+scrapecore ai https://shop.example/c/1 https://shop.example/c/2 -p "every product with price" --many -f xlsx -o out.xlsx
 scrapecore search "web scraping api" --limit 3
 scrapecore monitor add https://competitor.example/pricing --every 60 --selector "#plans"
 scrapecore monitor list

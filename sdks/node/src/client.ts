@@ -2,7 +2,7 @@ import {
   APIConnectionError, AuthenticationError, JobFailedError, JobTimeoutError, ScrapeCoreError, fromResponse,
 } from "./errors.js";
 import type {
-  AiExtractOptions, AiExtractResult, CrawlExportFormat, CrawlOptions, CrawlPage, Job, MapOptions, MapResult, Monitor,
+  AiExtractOptions, AiExtractResult, AiJob, AiJobOptions, CrawlExportFormat, CrawlOptions, CrawlPage, Job, MapOptions, MapResult, Monitor,
   MonitorChange, MonitorOptions, ScrapeOptions, ScrapeResult, ScreenshotOptions, SearchOptions, SearchResult, WaitOptions,
 } from "./types.js";
 import { VERSION } from "./version.js";
@@ -28,8 +28,8 @@ export interface RequestOptions {
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined>;
   idempotencyKey?: string;
-  /** Resolve to the response body as text instead of parsed JSON. */
-  raw?: boolean;
+  /** Resolve to the response body as text (true) or bytes ("bytes") instead of parsed JSON. */
+  raw?: boolean | "bytes";
 }
 
 const env = (k: string): string | undefined =>
@@ -108,6 +108,7 @@ export class ScrapeCore {
           method, headers, signal: ctl.signal,
           body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
         });
+        if (res.ok && opts.raw === "bytes") return new Uint8Array(await res.arrayBuffer()) as unknown as T;
         const text = await res.text();
         if (res.ok && opts.raw) return text as unknown as T;
         let parsed: any = null;
@@ -228,7 +229,7 @@ export class ScrapeCore {
   }
 
   // ── AI extraction and web search (bring your own provider key) ───────────────────────
-  /** Structured data with Claude, using the Anthropic key saved in your dashboard. Give a prompt, a JSON schema, or both. */
+  /** Structured data from ONE page with your own AI provider (any connected one). For many pages use aiJob(). */
   aiExtract(url: string, opts: AiExtractOptions = {}): Promise<AiExtractResult> {
     return this.request("POST", "extract/ai", { body: body({ url, ...opts }) });
   }
@@ -242,6 +243,70 @@ export class ScrapeCore {
   crawlExport(jobId: string, format: CrawlExportFormat = "jsonl", opts: { chunkSize?: number; overlap?: number } = {}): Promise<string> {
     return this.request("GET", `crawl/${encodeURIComponent(jobId)}/export`,
       { raw: true, query: { format, chunk_size: opts.chunkSize, overlap: opts.overlap } });
+  }
+
+  // ── AI Extraction jobs (your own AI provider key; many URLs, sitemaps, whole sites) ─────
+  /** Your connected AI providers (keys masked) and the default one. */
+  aiProviders(): Promise<{ providers: any[]; default: string | null }> {
+    return this.request("GET", "ai/providers");
+  }
+
+  /** Start an AI extraction job over URLs, a sitemap ({ sitemap }) or a whole site ({ site }). */
+  async aiJob(urls: string[] | null, opts: AiJobOptions = {}): Promise<AiJob> {
+    const { sitemap, site, wait = false, timeout = 3600, schema, records = "single", options, ...rest } = opts;
+    const source = sitemap ? { type: "sitemap", value: sitemap } : site ? { type: "discover", value: site } : { type: "urls" };
+    const list = urls ?? [];
+    const job = await this.request<AiJob>("POST", "ai/jobs", {
+      idempotencyKey: uuid(),
+      body: body({ urls: list, source, jsonSchema: schema, records, options: options ? body(options as any) : undefined,
+                   mode: list.length > 1 ? "bulk" : site ? "multipage" : "natural", ...rest }),
+    });
+    return wait ? this.waitForAiJob(job.job_id, { timeout }) : job;
+  }
+
+  getAiJob(jobId: string): Promise<AiJob> {
+    return this.request("GET", `ai/jobs/${encodeURIComponent(jobId)}`);
+  }
+
+  /** Poll until completed / partially_completed / failed / cancelled. */
+  async waitForAiJob(jobId: string, opts: { timeout?: number; pollInterval?: number } = {}): Promise<AiJob> {
+    const deadline = Date.now() + (opts.timeout ?? 3600) * 1000;
+    let delay = opts.pollInterval ?? 2;
+    for (;;) {
+      const job = await this.getAiJob(jobId);
+      if (["completed", "partially_completed", "failed", "cancelled"].includes(job.status)) return job;
+      if (Date.now() + delay * 1000 > deadline) {
+        throw new JobTimeoutError(`AI job ${jobId} still ${job.status}`, job as any, { code: "JOB_TIMEOUT" });
+      }
+      await sleep(delay);
+      delay = Math.min(delay * 1.3, 10);
+    }
+  }
+
+  /** Every record of a job (data, valid, errors, url, inferred). */
+  async aiJobRecords(jobId: string, opts: { valid?: "valid" | "invalid" | "missing"; pageSize?: number } = {}): Promise<any[]> {
+    const out: any[] = [];
+    for (let offset = 0; ;) {
+      const r = await this.request("GET", `ai/jobs/${encodeURIComponent(jobId)}/records`,
+        { query: { offset, limit: opts.pageSize ?? 200, valid: opts.valid } });
+      out.push(...(r.records ?? []));
+      offset += (r.records ?? []).length;
+      if (!(r.records ?? []).length || offset >= (r.total ?? 0)) return out;
+    }
+  }
+
+  /** The job's records as a file: "json", "csv" or "xlsx" (bytes). */
+  aiJobExport(jobId: string, format: "json" | "csv" | "xlsx" = "json"): Promise<Uint8Array> {
+    return this.request("GET", `ai/jobs/${encodeURIComponent(jobId)}/export`, { raw: "bytes", query: { format } });
+  }
+
+  cancelAiJob(jobId: string): Promise<any> {
+    return this.request("POST", `ai/jobs/${encodeURIComponent(jobId)}/cancel`);
+  }
+
+  /** Retry only the pages that failed. */
+  retryAiJob(jobId: string): Promise<any> {
+    return this.request("POST", `ai/jobs/${encodeURIComponent(jobId)}/retry`);
   }
 
   // ── page-change monitors ─────────────────────────────────────────────────────────────
