@@ -155,7 +155,7 @@ class AsyncScrapeCore:
         return await self.request("GET", "jobs", params=_base._clean({"limit": limit, "offset": offset,
                                                                   "status": status, "type": type}))
 
-    # ── AI extraction and web search (bring your own provider key) ───────────────────────
+    # ── AI extraction (your own AI provider key) ───────────────────────
     async def ai_extract(self, url: str, *, prompt: str | None = None, schema: dict | None = None, model: str | None = None,
                    provider: str | None = None, records: str | None = None,
                    js_render: bool | None = None, use_proxy: bool | None = None) -> dict:
@@ -166,13 +166,6 @@ class AsyncScrapeCore:
         return await self.request("POST", "extract/ai", json=_base._clean({"url": url, "prompt": prompt, "schema": schema,
                                                                       "model": model, "provider": provider, "records": records, "js_render": js_render,
                                                                       "use_proxy": use_proxy}))
-
-    async def search(self, query: str, *, limit: int | None = None, scrape: bool | None = None, format: str | None = None,
-               provider: str | None = None, max_chars: int | None = None) -> dict:
-        """Web search (your Brave / Serper key) and, by default, scrape each result as Markdown."""
-        return await self.request("POST", "search", json=_base._clean({"query": query, "limit": limit, "scrape": scrape,
-                                                                  "format": format, "provider": provider,
-                                                                  "max_chars": max_chars}))
 
     async def crawl_export(self, job_id: str, format: str = "jsonl", *, chunk_size: int | None = None,
                      overlap: int | None = None) -> str:

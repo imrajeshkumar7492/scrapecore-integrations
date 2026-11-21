@@ -1,4 +1,4 @@
-"""`scrapecore` command line: scrape, map, crawl, screenshot, AI extract, search, monitors, usage.
+"""`scrapecore` command line: scrape, map, crawl, screenshot, AI extract, monitors, usage.
 
     scrapecore login                         save an API key (~/.config/scrapecore/config.json, mode 600)
     scrapecore scrape https://example.com    the page as Markdown
@@ -237,17 +237,6 @@ def cmd_ai(args):
             sys.stdout.write(data.decode("utf-8-sig"))
 
 
-def cmd_search(args):
-    with client(args) as sc:
-        r = sc.search(args.query, limit=args.limit, scrape=False if args.no_scrape else None)
-    if args.json:
-        return out(args, r)
-    parts = []
-    for i, x in enumerate(r.get("results") or [], 1):
-        parts.append(f"{i}. {x.get('title')}\n   {x.get('url')}")
-        if x.get("markdown"):
-            parts.append("   " + x["markdown"][:500].replace("\n", "\n   ") + ("…" if len(x["markdown"]) > 500 else ""))
-    out(args, r, "\n".join(parts) or "no results")
 
 
 def cmd_monitor(args):
@@ -375,10 +364,6 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--project")
     s.add_argument("-f", "--format", choices=["json", "csv", "xlsx"], default="json")
     s.add_argument("--no-wait", action="store_true")
-    s = add("search", cmd_search, "web search + scrape the results (your Brave / Serper key)")
-    s.add_argument("query")
-    s.add_argument("--limit", type=int)
-    s.add_argument("--no-scrape", action="store_true", help="results only, don't fetch the pages")
     s = add("monitor", cmd_monitor, "page-change monitors: list | add URL | check ID | changes ID | pause ID | resume ID | rm ID")
     s.add_argument("action", choices=["list", "add", "check", "changes", "pause", "resume", "rm"])
     s.add_argument("target", nargs="?", help="URL (add) or monitor id")

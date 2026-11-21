@@ -1,4 +1,4 @@
-"""0.2: AI extraction, search, crawl exports, monitors, and the `scrapecore` CLI."""
+"""0.2: AI extraction, crawl exports, monitors, and the `scrapecore` CLI."""
 import base64
 import json
 
@@ -15,7 +15,7 @@ def mk(handler, cls=ScrapeCore):
     return cls(KEY, base_url="https://api.test", http_client=http)
 
 
-def test_ai_extract_search_export_monitors_paths():
+def test_ai_extract_export_monitors_paths():
     seen = []
 
     def h(req):
@@ -27,18 +27,16 @@ def test_ai_extract_search_export_monitors_paths():
         return httpx.Response(200, json={"ok": True})
     sc = mk(h)
     sc.ai_extract("https://x.example", prompt="price", schema={"type": "object"})
-    sc.search("espresso", limit=3)
     assert sc.crawl_export("j1", "llms") == "# Site\n\n> summary\n"
     sc.create_monitor("https://x.example", interval_minutes=60, selector="#p")
     sc.update_monitor("m1", status="paused")
     assert sc.monitor_changes("m1", limit=2) == [{"diff": "-a\n+b"}]
     assert seen[0][:2] == ("POST", "/api/v1/extract/ai") and seen[0][3] == {"url": "https://x.example", "prompt": "price",
                                                                              "schema": {"type": "object"}}
-    assert seen[1][3] == {"query": "espresso", "limit": 3}
-    assert seen[2][:3] == ("GET", "/api/v1/crawl/j1/export", "format=llms")
-    assert seen[3][3] == {"url": "https://x.example", "interval_minutes": 60, "selector": "#p"}
-    assert seen[4][:2] == ("PATCH", "/api/v1/monitors/m1") and seen[4][3] == {"status": "paused"}
-    assert seen[5][2] == "limit=2"
+    assert seen[1][:3] == ("GET", "/api/v1/crawl/j1/export", "format=llms")
+    assert seen[2][3] == {"url": "https://x.example", "interval_minutes": 60, "selector": "#p"}
+    assert seen[3][:2] == ("PATCH", "/api/v1/monitors/m1") and seen[3][3] == {"status": "paused"}
+    assert seen[4][2] == "limit=2"
 
 
 async def test_async_parity():

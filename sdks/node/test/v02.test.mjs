@@ -9,7 +9,7 @@ import { main, parseArgs } from "../dist/esm/cli.js";
 const KEY = "sk_test_" + "x".repeat(32);
 const json = (status, obj) => new Response(JSON.stringify(obj), { status });
 
-test("aiExtract / search / crawlExport / monitors: paths and bodies", async () => {
+test("aiExtract / crawlExport / monitors: paths and bodies", async () => {
   const seen = [];
   const sc = new ScrapeCore({ apiKey: KEY, baseUrl: "https://api.test", fetch: async (url, init) => {
     const u = new URL(url);
@@ -19,17 +19,15 @@ test("aiExtract / search / crawlExport / monitors: paths and bodies", async () =
     return json(200, { ok: true });
   } });
   await sc.aiExtract("https://x.example", { prompt: "price", jsRender: true });
-  await sc.search("espresso", { limit: 3, maxChars: 500 });
   assert.equal(await sc.crawlExport("j1", "llms", { chunkSize: 500 }), "# llms\n");
   await sc.createMonitor("https://x.example", { selector: "#p", ignorePatterns: ["\\d+"] });
   await sc.updateMonitor("m1", { status: "paused" });
   assert.deepEqual(await sc.monitorChanges("m1", { limit: 2 }), [{ diff: "-a\n+b" }]);
   assert.deepEqual(seen[0], { m: "POST", p: "/api/v1/extract/ai", q: "", b: { url: "https://x.example", prompt: "price", js_render: true } });
-  assert.deepEqual(seen[1].b, { query: "espresso", limit: 3, max_chars: 500 });
-  assert.equal(seen[2].q, "?format=llms&chunk_size=500");
-  assert.deepEqual(seen[3].b, { url: "https://x.example", interval_minutes: 1440, selector: "#p", ignore_patterns: ["\\d+"] });
-  assert.deepEqual([seen[4].m, seen[4].p, seen[4].b], ["PATCH", "/api/v1/monitors/m1", { status: "paused" }]);
-  assert.equal(seen[5].q, "?limit=2");
+  assert.equal(seen[1].q, "?format=llms&chunk_size=500");
+  assert.deepEqual(seen[2].b, { url: "https://x.example", interval_minutes: 1440, selector: "#p", ignore_patterns: ["\\d+"] });
+  assert.deepEqual([seen[3].m, seen[3].p, seen[3].b], ["PATCH", "/api/v1/monitors/m1", { status: "paused" }]);
+  assert.equal(seen[4].q, "?limit=2");
 });
 
 test("parseArgs: flags, aliases, repeatables", () => {

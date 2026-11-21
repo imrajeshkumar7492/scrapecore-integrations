@@ -130,21 +130,6 @@ export interface AiExtractResult {
   [k: string]: unknown;
 }
 
-export interface SearchOptions {
-  limit?: number;
-  /** Scrape every result (default true). */
-  scrape?: boolean;
-  format?: "markdown" | "text" | "html";
-  provider?: "brave" | "serper";
-  maxChars?: number;
-}
-
-export interface SearchResult {
-  query: string;
-  results: Array<{ title: string; url: string; snippet?: string; markdown?: string; success?: boolean; [k: string]: unknown }>;
-  [k: string]: unknown;
-}
-
 export type CrawlExportFormat = "jsonl" | "markdown" | "chunks" | "llms" | "llms-full";
 
 export interface MonitorOptions {

@@ -2,7 +2,7 @@
 
 The official Python client for the [ScrapeCore](https://scrapecore.com) API (v1). You can scrape
 pages to HTML, Markdown or text, map a site, crawl it, take screenshots, and extract data with CSS
-selectors or with AI. You can also search the web and watch pages for changes. It includes a
+selectors or with AI. You can also watch pages for changes. It includes a
 `scrapecore` command-line tool.
 
 ```bash
@@ -36,11 +36,11 @@ async with AsyncScrapeCore() as sc:
     page = await sc.scrape("https://example.com", format="markdown")
 ```
 
-## AI extraction, search, crawl exports, monitors
+## AI extraction, crawl exports, monitors
 
 AI extraction uses your own AI provider key: OpenAI, Anthropic, Gemini, Mistral, Groq, DeepSeek, xAI,
 Cohere, Azure OpenAI, OpenRouter or any OpenAI-compatible endpoint. Connect it in Dashboard → AI Extraction.
-Web search uses your Brave or Serper key. Your provider bills you for tokens and queries; ScrapeCore does not.
+Your provider bills you for tokens; ScrapeCore does not.
 
 ```python
 product = sc.ai_extract("https://shop.example/item", prompt="name, price and rating",
@@ -52,8 +52,6 @@ job = sc.ai_job(["https://shop.example/c/1", "https://shop.example/c/2"], instru
                 schema={"name": "string", "price": "number"}, records="list", provider="openai", wait=True)
 rows = sc.ai_job_records(job["job_id"])
 open("products.xlsx", "wb").write(sc.ai_job_export(job["job_id"], "xlsx"))
-
-hits = sc.search("best espresso grinders 2026", limit=3)["results"]      # each with its page as Markdown
 
 llms_txt = sc.crawl_export(job["job_id"], "llms")            # also "jsonl", "markdown", "chunks", "llms-full"
 
@@ -72,7 +70,6 @@ scrapecore crawl https://docs.example.com --limit 50 --export llms -o llms.txt
 scrapecore screenshot https://example.com --full-page -o page.png
 scrapecore extract https://shop.example/item -p "name and price"
 scrapecore ai https://shop.example/c/1 https://shop.example/c/2 -p "every product with price" --many -f xlsx -o out.xlsx
-scrapecore search "web scraping api" --limit 3
 scrapecore monitor add https://competitor.example/pricing --every 60 --selector "#plans"
 scrapecore monitor list
 scrapecore usage

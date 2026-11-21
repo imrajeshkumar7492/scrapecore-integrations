@@ -259,19 +259,6 @@ const COMMANDS: Record<string, { help: string; run: (pos: string[], f: Flags) =>
       else process.stdout.write(Buffer.from(data).toString("utf8").replace(/^\uFEFF/, ""));
     },
   },
-  search: {
-    help: "web search + scrape the results (your Brave / Serper key; --limit, --no-scrape)",
-    async run(p, f) {
-      const r = await client(f).search(need(p.join(" "), "search QUERY"), { limit: num(f, "limit"),
-        scrape: f["no-scrape"] ? false : undefined });
-      const text = (r.results || []).map((x, i) => {
-        let s = `${i + 1}. ${x.title}\n   ${x.url}`;
-        if (x.markdown) s += "\n   " + x.markdown.slice(0, 500).replace(/\n/g, "\n   ") + (x.markdown.length > 500 ? "…" : "");
-        return s;
-      }).join("\n") || "no results";
-      out(f, r, text);
-    },
-  },
   monitor: {
     help: "page-change monitors: list | add URL | check ID | changes ID | pause ID | resume ID | rm ID",
     async run(p, f) {

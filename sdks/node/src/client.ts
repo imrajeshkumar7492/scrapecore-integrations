@@ -3,7 +3,7 @@ import {
 } from "./errors.js";
 import type {
   AiExtractOptions, AiExtractResult, AiJob, AiJobOptions, CrawlExportFormat, CrawlOptions, CrawlPage, Job, MapOptions, MapResult, Monitor,
-  MonitorChange, MonitorOptions, ScrapeOptions, ScrapeResult, ScreenshotOptions, SearchOptions, SearchResult, WaitOptions,
+  MonitorChange, MonitorOptions, ScrapeOptions, ScrapeResult, ScreenshotOptions, WaitOptions,
 } from "./types.js";
 import { VERSION } from "./version.js";
 
@@ -228,15 +228,10 @@ export class ScrapeCore {
     return this.request("GET", "jobs", { query: opts });
   }
 
-  // ── AI extraction and web search (bring your own provider key) ───────────────────────
+  // ── AI extraction (your own AI provider key) ───────────────────────
   /** Structured data from ONE page with your own AI provider (any connected one). For many pages use aiJob(). */
   aiExtract(url: string, opts: AiExtractOptions = {}): Promise<AiExtractResult> {
     return this.request("POST", "extract/ai", { body: body({ url, ...opts }) });
-  }
-
-  /** Web search (your Brave / Serper key) and, by default, each result scraped as Markdown. */
-  search(query: string, opts: SearchOptions = {}): Promise<SearchResult> {
-    return this.request("POST", "search", { body: body({ query, ...opts }) });
   }
 
   /** A crawl as one AI-ready document: jsonl, markdown, chunks (RAG JSONL), llms (llms.txt) or llms-full. */
