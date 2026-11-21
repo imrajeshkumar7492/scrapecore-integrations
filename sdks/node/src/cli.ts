@@ -300,6 +300,61 @@ const COMMANDS: Record<string, { help: string; run: (pos: string[], f: Flags) =>
       out(f, r, table(rows.map((j: any) => [j.job_id, j.type, j.status, j.created_at, j.url]), ["JOB", "TYPE", "STATUS", "CREATED", "URL"]));
     },
   },
+  search: {
+    help: "search engines (-e google|bing|yahoo|duckduckgo|yandex|baidu, -t web|news|image|video|shopping|map|..., --results, --country)",
+    async run(p, f) {
+      const r: any = await client(f).search(need(p.join(" "), "search QUERY"), { engine: str(f, "engine") || str(f, "e") || "google",
+        searchType: str(f, "type") || str(f, "t") || "web", numResults: num(f, "results"), country: str(f, "country"),
+        language: str(f, "language"), resultRange: str(f, "range") });
+      const rows = (r.organic_results || []) as any[];
+      out(f, r, rows.map((x) => `${x.rank}. ${x.title}\n   ${x.url}`).join("\n") || JSON.stringify(r, null, 2));
+    },
+  },
+  youtube: {
+    help: "YouTube: youtube search QUERY | video URL | channel URL | download URL",
+    async run(p, f) {
+      const [action, ...rest] = p;
+      const map: Record<string, string> = { search: "search", video: "scrape_video", channel: "scrape_channel", download: "download" };
+      const a = map[need(action, "youtube ACTION")] || action;
+      const target = need(rest.join(" "), "youtube ACTION TARGET");
+      out(f, await client(f).youtube(a, a === "search" ? { query: target } : { url: target }));
+    },
+  },
+  social: {
+    help: "social media: social PLATFORM TARGET [--action A] (twitter, instagram, tiktok, reddit, github, linkedin, rss, ...)",
+    async run(p, f) {
+      const [platform, ...rest] = p;
+      out(f, await client(f).social(need(platform, "social PLATFORM"), rest.join(" ") || undefined,
+        { action: str(f, "action"), limit: num(f, "limit") }));
+    },
+  },
+  ecommerce: {
+    help: "e-commerce: ecommerce search QUERY | product URL | reviews URL [--platform amazon|flipkart|walmart|...]",
+    async run(p, f) {
+      const [action, ...rest] = p;
+      const map: Record<string, string> = { search: "search", product: "scrape_product", reviews: "scrape_reviews", category: "scrape_category" };
+      const a = map[need(action, "ecommerce ACTION")] || action;
+      const target = need(rest.join(" "), "ecommerce ACTION TARGET");
+      out(f, await client(f).ecommerce(a, { platform: str(f, "platform"), ...(a === "search" ? { query: target } : { url: target }),
+        country: str(f, "country"), numPages: num(f, "pages") }));
+    },
+  },
+  maps: {
+    help: 'maps: maps search "QUERY" [--location City] | place URL | reviews URL | directions "A to B"',
+    async run(p, f) {
+      const [action, ...rest] = p;
+      const map: Record<string, string> = { search: "search", place: "scrape_location", reviews: "scrape_reviews", directions: "directions" };
+      const a = map[need(action, "maps ACTION")] || action;
+      const target = need(rest.join(" "), "maps ACTION TARGET");
+      let opts: Record<string, unknown> = {};
+      if (a === "search") opts = { query: target, location: str(f, "location") ? { city: str(f, "location") } : undefined };
+      else if (a === "directions") {
+        const [o, d] = target.split(" to ");
+        opts = { origin: need(o, 'directions "A to B"'), destination: need(d, 'directions "A to B"'), mode: str(f, "mode") };
+      } else opts = { url: target };
+      out(f, await client(f).maps(a, opts));
+    },
+  },
   usage: {
     help: "credits and limits",
     async run(_p, f) {

@@ -270,6 +270,84 @@ class AsyncScrapeCore:
         """Retry only the pages that failed."""
         return await self.request("POST", f"ai/jobs/{job_id}/retry")
 
+    # ── data APIs (v2.0): search engines, e-commerce, YouTube, social media, maps ─────────
+    async def search(self, query: str, *, engine: str = "google", search_type: str = "web", **params) -> dict:
+        """SERP from google | bing | yahoo | duckduckgo | yandex | baidu. search_type: web, news, image, video,
+        shopping, map, forum, book, short_video, ai, default. Other params as in the API (num_results, page,
+        result_range, country, language, device, time_filter, scrape_depth, scrape_options, ...)."""
+        return await self.request("POST", f"search/{engine}", json=_base._clean({"query": query, "search_type": search_type, **params}))
+
+    async def ecommerce(self, action: str = "search", *, platform: str | None = None, **params) -> dict:
+        """amazon | flipkart | walmart | alibaba | myntra | generic. action: search, scrape_product, scrape_category,
+        scrape_reviews, compare_products, scrape_seller, search_by_category_id, search_by_merchant_id."""
+        path = f"ecommerce/{platform}" if platform else "ecommerce"
+        return await self.request("POST", path, json=_base._clean({"action": action, **params}))
+
+    async def youtube(self, action: str = "search", **params) -> dict:
+        """action: search (query, filters), scrape_video (url, include_transcript, include_comments),
+        scrape_channel (url), download (url, quality, format), screenshot (url)."""
+        return await self.request("POST", "youtube", json=_base._clean({"action": action, **params}))
+
+    async def social(self, platform: str, target: str | None = None, *, action: str | None = None, **params) -> dict:
+        """twitter, instagram, tiktok, snapchat, sharechat, threads, rss, linkedin, telegram, github, reddit,
+        substack, podcast. target: URL, @handle, owner/repo, r/subreddit or a query."""
+        return await self.request("POST", f"social/{platform}", json=_base._clean({"target": target, "action": action, **params}))
+
+    async def maps(self, action: str = "search", **params) -> dict:
+        """action: search (query, location), nearby (location.lat/lng), scrape_location / scrape_reviews
+        (url or place_id), directions (origin, destination, mode)."""
+        return await self.request("POST", "maps", json=_base._clean({"action": action, **params}))
+
+    async def health(self) -> dict:
+        return await self.request("GET", "health")
+
+    async def history(self, limit: int = 20) -> list:
+        r = await self.request("GET", "scrape/history", params={"limit": limit})
+        return r.get("history", r) if isinstance(r, dict) else r
+
+    # ── v2.1: ScrapeCore Search, crawl index, agent mode, pipelines ─────────────────────
+    async def web_search(self, query: str, *, engines: list | None = None, num_results: int = 5, content: str = "markdown",
+                   **params) -> dict:
+        """Meta-search (engines + ScrapeCore's crawl index), ranked, with each page already scraped."""
+        return await self.request("POST", "web-search", json=_base._clean({"query": query, "engines": engines,
+                                                                   "num_results": num_results, "content": content, **params}))
+
+    async def index_search(self, query: str, *, limit: int = 10, domain: str | None = None) -> dict:
+        """Full-text search over pages ScrapeCore already fetched."""
+        return await self.request("POST", "index/search", json=_base._clean({"query": query, "limit": limit, "domain": domain}))
+
+    async def agent_run(self, steps: list | None = None, *, instructions: str | None = None, start_url: str | None = None,
+                  inputs: dict | None = None, secrets: dict | None = None, save_as: str | None = None, **params) -> dict:
+        """Run browser steps (or plain-word instructions planned by your AI provider) in one call."""
+        return await self.request("POST", "agent/run", json=_base._clean({"steps": steps, "instructions": instructions,
+                                                                   "start_url": start_url, "inputs": inputs, "secrets": secrets,
+                                                                   "save_as": save_as, **params}))
+
+    async def agent_recipes(self) -> list:
+        return (await self.request("GET", "agent/recipes")).get("recipes", [])
+
+    async def run_agent_recipe(self, recipe_id: str, *, inputs: dict | None = None, secrets: dict | None = None) -> dict:
+        return await self.request("POST", f"agent/recipes/{recipe_id}/run", json=_base._clean({"inputs": inputs, "secrets": secrets}))
+
+    async def pipelines(self) -> list:
+        return (await self.request("GET", "pipelines")).get("pipelines", [])
+
+    async def create_pipeline(self, name: str, kind: str, params: dict, *, interval_minutes: int = 1440,
+                        destinations: list | None = None) -> dict:
+        """kind: scrape, search, web_search, ecommerce, social, youtube, maps. destinations: list of
+        {"type": "webhook" | "s3" | "gsheets" | "bigquery", "config": {...}}."""
+        return await self.request("POST", "pipelines", json={"name": name, "kind": kind, "params": params,
+                                                        "interval_minutes": interval_minutes, "destinations": destinations or []})
+
+    async def run_pipeline(self, pipeline_id: str) -> dict:
+        return await self.request("POST", f"pipelines/{pipeline_id}/run")
+
+    async def pipeline_runs(self, pipeline_id: str, limit: int = 20) -> list:
+        return (await self.request("GET", f"pipelines/{pipeline_id}/runs", params={"limit": limit})).get("runs", [])
+
+    async def delete_pipeline(self, pipeline_id: str) -> dict:
+        return await self.request("DELETE", f"pipelines/{pipeline_id}")
+
     # ── account ───────────────────────────────────────────────────────────────────────────
     async def usage(self) -> dict:
         return await self.request("GET", "usage")

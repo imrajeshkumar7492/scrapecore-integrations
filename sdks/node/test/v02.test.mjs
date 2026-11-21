@@ -131,3 +131,21 @@ test("cli: ai job over URLs writes the export", async () => {
     assert.equal(await main(["ai", "-p", "x"]), 2);
   } finally { globalThis.fetch = realFetch; t.restore(); delete process.env.SCRAPECORE_API_KEY; }
 });
+
+test("0.3 data APIs: paths and bodies", async () => {
+  const seen = [];
+  const sc = new ScrapeCore({ apiKey: KEY, baseUrl: "https://api.test", fetch: async (url, init) => {
+    seen.push({ p: new URL(url).pathname, b: JSON.parse(init.body) });
+    return json(200, { ok: true });
+  } });
+  await sc.search("laptops", { engine: "bing", searchType: "news", numResults: 5 });
+  await sc.ecommerce("scrape_product", { platform: "amazon", url: "https://www.amazon.com/dp/B0" });
+  await sc.youtube("scrape_video", { url: "https://youtu.be/x", includeComments: false });
+  await sc.social("reddit", "r/python", { action: "scrape_subreddit" });
+  await sc.maps("directions", { origin: "A", destination: "B" });
+  assert.deepEqual(seen[0], { p: "/api/v1/search/bing", b: { query: "laptops", search_type: "news", num_results: 5 } });
+  assert.equal(seen[1].p, "/api/v1/ecommerce/amazon");
+  assert.deepEqual(seen[2].b, { action: "scrape_video", url: "https://youtu.be/x", include_comments: false });
+  assert.deepEqual(seen[3], { p: "/api/v1/social/reddit", b: { target: "r/python", action: "scrape_subreddit" } });
+  assert.equal(seen[4].b.origin, "A");
+});

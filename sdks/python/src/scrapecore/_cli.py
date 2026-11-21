@@ -1,4 +1,5 @@
-"""`scrapecore` command line: scrape, map, crawl, screenshot, AI extract, monitors, usage.
+"""`scrapecore` (alias `scraper`) command line: scrape, map, crawl, screenshot, AI extract, monitors,
+search engines, e-commerce, YouTube, social media, maps, batch jobs, usage.
 
     scrapecore login                         save an API key (~/.config/scrapecore/config.json, mode 600)
     scrapecore scrape https://example.com    the page as Markdown
@@ -298,7 +299,9 @@ def parser() -> argparse.ArgumentParser:
     common.add_argument("--json", action="store_true", help="print the raw API response as JSON")
     common.add_argument("-o", "--output", help="write the result to a file")
 
-    p = argparse.ArgumentParser(prog="scrapecore", description="ScrapeCore from the command line.",
+    prog = "scraper" if Path(sys.argv[0]).name.startswith("scraper") else "scrapecore"
+    p = argparse.ArgumentParser(prog=prog, description="ScrapeCore from the command line: scraping, search engines, "
+                                "e-commerce, YouTube, social media and maps.",
                                 epilog="Docs: https://scrapecore.com/docs/cli")
     p.add_argument("-V", "--version", action="version", version=f"scrapecore {__version__}")
     sub = p.add_subparsers(dest="cmd", metavar="COMMAND")
@@ -343,7 +346,7 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--full-page", action="store_true")
     s.add_argument("--device", help="desktop, desktop_hd, laptop, tablet or mobile")
     s.add_argument("--image-format", choices=["png", "jpeg"])
-    s = add("extract", cmd_extract, "structured data: AI (--prompt/--schema, your Anthropic key) or CSS (--selectors)")
+    s = add("extract", cmd_extract, "structured data: AI (--prompt/--schema, your AI provider key) or CSS (--selectors)")
     s.add_argument("url")
     s.add_argument("-p", "--prompt")
     s.add_argument("--schema", help="JSON schema (file path or JSON string)")
@@ -377,7 +380,19 @@ def parser() -> argparse.ArgumentParser:
     s.add_argument("--status")
     s.add_argument("--type")
     add("usage", cmd_usage, "credits and limits")
+    s = add("auth", cmd_auth, "auth login | auth status")
+    s.add_argument("action", choices=["login", "status"])
+    s.add_argument("--as", dest="as_", choices=["json", "yaml", "table", "text"])
+    from ._cli_data import register
+    register(add, common)
     return p
+
+
+def cmd_auth(args):
+    if args.action == "login":
+        return cmd_login(args)
+    from ._cli_data import cmd_auth_status
+    return cmd_auth_status(args)
 
 
 def main(argv: list[str] | None = None) -> int:

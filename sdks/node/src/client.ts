@@ -337,6 +337,68 @@ export class ScrapeCore {
     return (await this.request("GET", `monitors/${encodeURIComponent(id)}/changes`, { query: { limit: opts.limit ?? 20 } })).changes;
   }
 
+  // ── data APIs (v2.0): search engines, e-commerce, YouTube, social media, maps ─────────
+  // Top-level options may be camelCase (numResults → num_results); nested objects use the API's
+  // snake_case names (e.g. scrapeOptions: { js_render: true }, filters: { min_price: 50 }).
+  /** SERP from google | bing | yahoo | duckduckgo | yandex | baidu (searchType: web, news, image, video, shopping, map, ...). */
+  search(query: string, opts: Record<string, unknown> & { engine?: string } = {}): Promise<any> {
+    const { engine = "google", ...rest } = opts;
+    return this.request("POST", `search/${encodeURIComponent(String(engine))}`, { body: body({ query, ...rest }) });
+  }
+
+  /** amazon | flipkart | walmart | alibaba | myntra | generic — search, scrape_product, scrape_reviews, compare_products, ... */
+  ecommerce(action = "search", opts: Record<string, unknown> & { platform?: string } = {}): Promise<any> {
+    const { platform, ...rest } = opts;
+    return this.request("POST", platform ? `ecommerce/${encodeURIComponent(String(platform))}` : "ecommerce",
+      { body: body({ action, ...rest }) });
+  }
+
+  /** search | scrape_video | scrape_channel | download | screenshot */
+  youtube(action = "search", opts: Record<string, unknown> = {}): Promise<any> {
+    return this.request("POST", "youtube", { body: body({ action, ...opts }) });
+  }
+
+  /** twitter, instagram, tiktok, snapchat, sharechat, threads, rss, linkedin, telegram, github, reddit, substack, podcast */
+  social(platform: string, target?: string, opts: Record<string, unknown> = {}): Promise<any> {
+    return this.request("POST", `social/${encodeURIComponent(platform)}`, { body: body({ target, ...opts }) });
+  }
+
+  /** search | nearby | scrape_location | scrape_reviews | directions */
+  maps(action = "search", opts: Record<string, unknown> = {}): Promise<any> {
+    return this.request("POST", "maps", { body: body({ action, ...opts }) });
+  }
+
+  // ── v2.1: ScrapeCore Search, crawl index, agent mode, pipelines ─────────────────────
+  /** Meta-search (engines + crawl index), ranked, each page already scraped. */
+  webSearch(query: string, opts: Record<string, unknown> = {}): Promise<any> {
+    return this.request("POST", "web-search", { body: body({ query, ...opts }) });
+  }
+
+  indexSearch(query: string, opts: Record<string, unknown> = {}): Promise<any> {
+    return this.request("POST", "index/search", { body: body({ query, ...opts }) });
+  }
+
+  /** Browser steps (or instructions planned by your AI provider) in one call. */
+  agentRun(opts: Record<string, unknown>): Promise<any> {
+    return this.request("POST", "agent/run", { body: body(opts) });
+  }
+
+  runAgentRecipe(recipeId: string, opts: Record<string, unknown> = {}): Promise<any> {
+    return this.request("POST", `agent/recipes/${encodeURIComponent(recipeId)}/run`, { body: body(opts) });
+  }
+
+  createPipeline(opts: Record<string, unknown>): Promise<any> {
+    return this.request("POST", "pipelines", { body: body(opts) });
+  }
+
+  pipelines(): Promise<any> {
+    return this.request("GET", "pipelines");
+  }
+
+  runPipeline(pipelineId: string): Promise<any> {
+    return this.request("POST", `pipelines/${encodeURIComponent(pipelineId)}/run`);
+  }
+
   // ── account ───────────────────────────────────────────────────────────────────────────
   usage(): Promise<any> {
     return this.request("GET", "usage");

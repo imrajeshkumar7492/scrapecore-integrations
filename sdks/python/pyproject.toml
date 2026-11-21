@@ -21,6 +21,7 @@ classifiers = [
 
 [project.scripts]
 scrapecore = "scrapecore._cli:main"
+scraper = "scrapecore._cli:main"
 
 [project.urls]
 Homepage = "https://scrapecore.com"
@@ -29,6 +30,7 @@ Source = "https://github.com/imrajeshkumar7492/scrapecore-integrations/tree/main
 Issues = "https://github.com/imrajeshkumar7492/scrapecore-integrations/issues"
 
 [project.optional-dependencies]
+cli = ["rich>=13"]
 test = ["pytest>=7", "pytest-asyncio>=0.21"]
 
 [tool.hatch.version]

@@ -71,3 +71,16 @@ never creates a second job. Failed scrapes are never charged.
 
 Use ScrapeCore only for content you are allowed to access. Crawls and maps respect `robots.txt` by
 default. See the [acceptable use policy](https://scrapecore.com/acceptable-use).
+
+## Search engines, e-commerce, YouTube, social media and maps (0.3)
+
+```ts
+const serp = await sc.search("best laptops 2026", { engine: "google", resultRange: "top10", country: "IN" });
+const product = await sc.ecommerce("scrape_product", { platform: "amazon", url: "https://www.amazon.com/dp/B08N5KWB9H" });
+const video = await sc.youtube("scrape_video", { url: "https://youtu.be/aircAruvnKk" });
+const repo = await sc.social("github", "facebook/react");
+const places = await sc.maps("search", { query: "restaurants", location: { city: "Mumbai", country: "IN" } });
+```
+
+CLI: `npx @scrapecore/sdk search best laptops -e bing`, `… ecommerce product URL --platform amazon`,
+`… youtube video URL`, `… social reddit r/python`, `… maps directions "Mumbai to Pune"`.
